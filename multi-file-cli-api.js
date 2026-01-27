@@ -259,7 +259,7 @@ async function capturePage(options) {
 	try {
 		let filename, content;
 		options.zipScript = getZipScriptSource();
-		const pageData = await backend.getPageData(options);
+		const pageData = await backend.getPageDataAndResources(options);
 		console.debug(`pagedata: `, Object.keys(pageData));
 		content = pageData.content;
 		if (options.consoleMessagesFile && pageData.consoleMessages) {
