@@ -258,7 +258,7 @@ function getHostURL(url) {
 async function capturePage(options) {
 	try {
 		let filename, content;
-		options.zipScript = getZipScriptSource();
+		options.zipScript = getZipScriptSource();//FIXME this option seems to have no effect?
 		const pageData = await backend.getPageDataAndResources(options);
 		console.debug(`pagedata: `, Object.keys(pageData));
 		content = pageData.content;
@@ -269,47 +269,54 @@ async function capturePage(options) {
 			await writeTextFile(options.debugMessagesFile, pageData.debugMessages.map(([timestamp, message]) =>
 				`[${new Date(timestamp).toISOString()}] ${message.join(" ")}`).join("\n"));
 		}
-		if (options.outputJson) {
-			if (content instanceof Uint8Array) {
-				const fileReader = new FileReader();
-				fileReader.readAsDataURL(new Blob([content]));
-				content = await new Promise(resolve => {
-					fileReader.onload = () => resolve(fileReader.result);
-				});
-				content = content.replace(/^data:.*?;base64,/, "");
-				pageData.content = undefined;
-				pageData.binaryContent = content;
+
+		if ( !pageData.hasOwnProperty('filename') || pageData.filename === undefined || pageData.filename == "" )
+			pageData.filename = "index.html";
+		filename = await getFilename(pageData.filename, options);
+		const mainbasedir = path.dirname(filename);
+
+		async function writeResourceData(resourceData, basedir) {
+			if ( !resourceData.hasOwnProperty('filename') || resourceData.filename === undefined || resourceData.filename == "" )
+				resourceData.filename = "index.html";
+			await mkdir(basedir, { recursive: true });
+			let mainfilename = path.join(basedir,resourceData.filename);
+			await writeTextFile(mainfilename, resourceData.content);
+			// Write resource files
+			var filewrites = Array();
+			for (const resourceType of Object.keys(resourceData.resources)) {
+				for (const resourceFile of resourceData.resources[resourceType]) {
+					let fullfilename = path.join(basedir,resourceFile.name);
+					if (resourceFile.url && !resourceFile.url.startsWith("data:") && resourceType != "frames") {
+						//let newfilename = prefixName + getFilename(resourceFile.name, options);
+						const dirname = path.dirname(fullfilename);
+						if (dirname) {
+							await mkdir(dirname, { recursive: true });
+						}
+						// WORKAROUND: Playwright does not have proper serialization of typed arrays https://github.com/microsoft/playwright/issues/5241
+						// When passing Uint8Array from page context, it will become a object, so we have to check for the JS type of content and write in different ways.
+						if ( resourceFile.content === undefined ) {
+							console.log('resourceFile.content undefined! ');
+							console.log(resourceFile);
+						} else if ( resourceFile.content.constructor === Uint8Array ) {
+							filewrites.push(writeFile(fullfilename, resourceFile.content, () => {}));
+							//console.log("Wrote "+newfilename+" in Uint8Array or string");
+						} else if ( typeof resourceFile.content === "string") {
+							filewrites.push(writeTextFile(fullfilename, resourceFile.content));
+						} else {
+							var arr = new Uint8Array(Object.values(resourceFile.content));
+							filewrites.push(writeFile(fullfilename, arr, () => {}));
+							console.log("Wrote "+newfilename+" in "+typeof resourceFile.content);
+						}
+					} else if ( resourceFile.url && !resourceFile.url.startsWith("data:") && resourceType == "frames") {
+						filewrites.push(writeResourceData(resourceFile, fullfilename));
+					}
+				}
 			}
-			pageData.doctype = undefined;
-			pageData.viewport = undefined;
-			pageData.comment = undefined;
-			content = JSON.stringify(pageData, null, 2);
+			return Promise.all(filewrites);
 		}
-		if (options.output) {
-			filename = await getFilename(options.output, options);
-		} else if (options.dumpContent) {
-			if (options.compressContent) {
-				await stdout.write(content);
-			} else {
-				console.log(content || ""); // eslint-disable-line no-console
-			}
-		} else {
-			filename = await getFilename(pageData.filename, options);
-		}
-		if (filename) {
-			if (options.outputJson) {
-				filename += filename.endsWith(".json") ? "" : ".json";
-			}
-			const directoryName = path.dirname(filename);
-			if (directoryName !== ".") {
-				await mkdir(directoryName, { recursive: true });
-			}
-			if (content instanceof Uint8Array) {
-				await writeFile(filename, content);
-			} else {
-				await writeTextFile(filename, content);
-			}
-		}
+
+		await writeResourceData(pageData, mainbasedir);
+
 		return pageData;
 	} catch (error) {
 		const date = new Date();
