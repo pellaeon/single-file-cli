@@ -259,7 +259,8 @@ async function capturePage(options) {
 	try {
 		let filename, content;
 		options.zipScript = getZipScriptSource();//FIXME this option seems to have no effect?
-		const pageData = await backend.getPageDataAndResources(options);
+		console.debug(`Capturing page with options: ${Object.keys(options)}`);
+		const pageData = await backend.CDPgetPageDataAndResources(options);
 		console.debug(`pagedata: `, Object.keys(pageData));
 		content = pageData.content;
 		if (options.consoleMessagesFile && pageData.consoleMessages) {
@@ -292,23 +293,23 @@ async function capturePage(options) {
 						if (dirname) {
 							await mkdir(dirname, { recursive: true });
 						}
-						// WORKAROUND: Playwright does not have proper serialization of typed arrays https://github.com/microsoft/playwright/issues/5241
-						// When passing Uint8Array from page context, it will become a object, so we have to check for the JS type of content and write in different ways.
 						if ( resourceFile.content === undefined ) {
 							console.log('resourceFile.content undefined! ');
 							console.log(resourceFile);
 						} else if ( resourceFile.content.constructor === Uint8Array ) {
 							filewrites.push(writeFile(fullfilename, resourceFile.content, () => {}));
-							//console.log("Wrote "+newfilename+" in Uint8Array or string");
+							//console.log("Wrote "+fullfilename+" in Uint8Array or string");
 						} else if ( typeof resourceFile.content === "string") {
 							filewrites.push(writeTextFile(fullfilename, resourceFile.content));
 						} else {
 							var arr = new Uint8Array(Object.values(resourceFile.content));
 							filewrites.push(writeFile(fullfilename, arr, () => {}));
-							console.log("Wrote "+newfilename+" in "+typeof resourceFile.content);
+							console.log("Wrote "+fullfilename+" in "+typeof resourceFile.content);
 						}
 					} else if ( resourceFile.url && !resourceFile.url.startsWith("data:") && resourceType == "frames") {
 						filewrites.push(writeResourceData(resourceFile, fullfilename));
+					} else {
+						console.log('Skipping data: URL resource for '+fullfilename);
 					}
 				}
 			}
