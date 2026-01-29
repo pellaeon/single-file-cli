@@ -259,9 +259,7 @@ async function capturePage(options) {
 	try {
 		let filename, content;
 		options.zipScript = getZipScriptSource();//FIXME this option seems to have no effect?
-		console.debug(`Capturing page with options: ${Object.keys(options)}`);
 		const pageData = await backend.CDPgetPageDataAndResources(options);
-		console.debug(`pagedata: `, Object.keys(pageData));
 		content = pageData.content;
 		if (options.consoleMessagesFile && pageData.consoleMessages) {
 			await writeTextFile(options.consoleMessagesFile, JSON.stringify(pageData.consoleMessages, null, 2));
@@ -304,7 +302,6 @@ async function capturePage(options) {
 						} else {
 							var arr = new Uint8Array(Object.values(resourceFile.content));
 							filewrites.push(writeFile(fullfilename, arr, () => {}));
-							console.log("Wrote "+fullfilename+" in "+typeof resourceFile.content);
 						}
 					} else if ( resourceFile.url && !resourceFile.url.startsWith("data:") && resourceType == "frames") {
 						filewrites.push(writeResourceData(resourceFile, fullfilename));
