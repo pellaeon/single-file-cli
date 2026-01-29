@@ -258,7 +258,6 @@ function getHostURL(url) {
 async function capturePage(options) {
 	try {
 		let filename, content;
-		options.zipScript = getZipScriptSource();//FIXME this option seems to have no effect?
 		const pageData = await backend.CDPgetPageDataAndResources(options);
 		content = pageData.content;
 		if (options.consoleMessagesFile && pageData.consoleMessages) {
@@ -271,6 +270,8 @@ async function capturePage(options) {
 
 		if ( !pageData.hasOwnProperty('filename') || pageData.filename === undefined || pageData.filename == "" )
 			pageData.filename = "index.html";
+		// if main html filename contains .zip , simply remove it because multifile doesn't actually zip
+		pageData.filename = pageData.filename.replace(/\.zip/i, "");
 		filename = await getFilename(pageData.filename, options);
 		const mainbasedir = path.dirname(filename);
 
